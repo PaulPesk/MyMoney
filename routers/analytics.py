@@ -1,62 +1,61 @@
-from fastapi import APIRouter, Depends
+from datetime import date
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-
-from app.schemas.analytics import AnalyticsSummaryResponse, CategoryAnalyticsResponse
-from app import models
 from app.database.connection import get_db
-from app.api.dependencies import get_current_user  # Ή από όπου κάνεις import το get_current_user
+from app.models.user import User
+from app.models.transaction import Transaction
+from app.api.dependencies import get_current_user
 
-router = APIRouter(
-    prefix="/analytics",
-    tags=["Analytics"]
-)
+router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
-@router.get("/summary", response_model=AnalyticsSummaryResponse)
-def get_financial_summary(
+@router.get("/summary")
+def get_analytics_summary(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    # Υπολογισμός συνολικών εισοδημάτων (INCOME)
-    total_income = db.query(func.coalesce(func.sum(models.Transaction.amount), 0.0))\
-        .filter(
-            models.Transaction.user_id == current_user.id,
-            models.Transaction.type == "INCOME"
-        ).scalar()
-
-    # Υπολογισμός συνολικών εξόδων (EXPENSE)
-    total_expenses = db.query(func.coalesce(func.sum(models.Transaction.amount), 0.0))\
-        .filter(
-            models.Transaction.user_id == current_user.id,
-            models.Transaction.type == "EXPENSE"
-        ).scalar()
-
+    query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+    
+    if start_date:
+        query = query.filter(Transaction.date >= start_date)
+    if end_date:
+        query = query.filter(Transaction.date <= end_date)
+        
+    transactions = query.all()
+    
+    total_income = sum(t.amount for t in transactions if t.type == "INCOME")
+    total_expenses = sum(t.amount for t in transactions if t.type == "EXPENSE")
     net_balance = total_income - total_expenses
-
+    
     return {
         "total_income": total_income,
         "total_expenses": total_expenses,
         "net_balance": net_balance
     }
 
-
-@router.get("/by-category", response_model=CategoryAnalyticsResponse)
+@router.get("/by-category")
 def get_expenses_by_category(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    # Άθροισμα εξόδων ανά κατηγορία
-    results = db.query(
-        models.Transaction.category,
-        func.sum(models.Transaction.amount).label("total_amount")
-    ).filter(
-        models.Transaction.user_id == current_user.id,
-        models.Transaction.type == "EXPENSE"
-    ).group_by(models.Transaction.category).all()
-
-    expenses = [
-        {"category": row.category, "total_amount": row.total_amount}
-        for row in results
-    ]
-
-    return {"expenses_by_category": expenses}
+    query = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.type == "EXPENSE"
+    )
+    
+    if start_date:
+        query = query.filter(Transaction.date >= start_date)
+    if end_date:
+        query = query.filter(Transaction.date <= end_date)
+        
+    expenses = query.all()
+    
+    by_category = {}
+    for e in expenses:
+        by_category[e.category] = by_category.get(e.category, 0.0) + e.amount
+        
+    return {"expenses_by_category": by_category}
