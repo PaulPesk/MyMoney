@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
-from app.api.dependencies import get_current_user
-from app.database.connection import get_db
-from app.models.user import User
-from app.schemas.user import UserCreate, UserResponse
-from app.core.security import hash_password  # Ή από όπου κάνεις import το hashing function σου (π.χ. utils.hash)
+from api.dependencies import get_current_user
+from database.connection import get_db
+from models.user import User
+from schemas.user import UserCreate, UserResponse
+from core.security import hash_password  # Ή από όπου κάνεις import το hashing function σου (π.χ. utils.hash)
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

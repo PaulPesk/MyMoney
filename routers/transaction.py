@@ -1,12 +1,11 @@
-from datetime import date
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.database.connection import get_db
-from app.models.user import User
-from app.models.transaction import Transaction
-from app.schemas.transaction import TransactionCreate, TransactionResponse
-from app.api.dependencies import get_current_user
+from database.connection import get_db
+from models.user import User
+from models.transaction import Transaction
+from schemas.transaction import TransactionCreate, TransactionResponse
+from api.dependencies import get_current_user
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
@@ -25,9 +24,9 @@ def create_transaction(
     current_user: User = Depends(get_current_user)
 ):
     """Creates a new transaction for the logged-in user."""
+    # Αφαιρούμε εντελώς την ανάθεση ημερομηνίας
     tx_data = tx_in.dict()
-    if not tx_data.get("date"):
-        tx_data["date"] = date.today()
+    tx_data.pop("date", None)  # Για ασφάλεια, αν τη στέλνει ακόμα το frontend
 
     new_tx = Transaction(**tx_data, user_id=current_user.id)
     db.add(new_tx)

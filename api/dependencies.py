@@ -1,11 +1,11 @@
 import jwt
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.config import settings
-from app.core.security import oauth2_scheme
-from app.database.connection import get_db
-from app.models.user import User
-from app.schemas.token import TokenData
+from core.config import settings
+from core.security import oauth2_scheme
+from database.connection import get_db
+from models.user import User
+from schemas.token import TokenData
 
 
 def get_current_user(

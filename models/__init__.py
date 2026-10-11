@@ -1,3 +1,3 @@
-from app.database.connection import Base
-from app.models.user import User
-from app.models.transaction import Transaction
+from database.connection import Base
+from models.user import User
+from models.transaction import Transaction

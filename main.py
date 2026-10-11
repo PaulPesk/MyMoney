@@ -5,15 +5,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 # Imports των routers σου (προσαρμοσε τα paths αν διαφέρουν ελάχιστα)
-from app.routers import auth, user, transaction, analytics
+from routers import auth, user, transaction, analytics
 
 app = FastAPI(title="MyMoney API")
 
 # 1. Προσθήκη όλων των Routers
-app.include_router(auth.router)
 app.include_router(user.router)
+app.include_router(auth.router)
 app.include_router(transaction.router)
 app.include_router(analytics.router)
+
 
 # 2. Ρύθμιση Static Files & Frontend
 BASE_DIR = Path(__file__).resolve().parent

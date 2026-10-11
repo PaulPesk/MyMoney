@@ -3,7 +3,7 @@ from typing import Optional
 import jwt
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
-from app.core.config import settings
+from core.config import settings
 
 # Defines the scheme and informs FastAPI where to request tokens (/auth/login)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")

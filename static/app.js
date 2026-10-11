@@ -1,285 +1,266 @@
-const API_URL = "";
-let token = localStorage.getItem("access_token");
-let isLoginMode = true;
+const API_URL = "http://127.0.0.1:8000";
 
 document.addEventListener("DOMContentLoaded", () => {
+    const token = localStorage.getItem("token");
     if (token) {
         showDashboard();
     } else {
-        showAuth();
+        showAuthScreen();
     }
+
+    const loginForm = document.getElementById("loginForm");
+    if (loginForm) loginForm.addEventListener("submit", handleLogin);
+
+    const registerForm = document.getElementById("registerForm");
+    if (registerForm) registerForm.addEventListener("submit", handleRegister);
+
+    const transactionForm = document.getElementById("transactionForm");
+    if (transactionForm) transactionForm.addEventListener("submit", handleAddTransaction);
+
+    const logoutBtn = document.getElementById("logoutBtn");
+    if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
 });
 
-// --- HELPER FUNCTIONS ---
-
-function setDefaultTxDate() {
-    const today = new Date().toISOString().split('T')[0];
-    const dateInput = document.getElementById("txDate");
-    if (dateInput) dateInput.value = today;
-}
-
-// --- AUTHENTICATION FUNCTIONS ---
-
-function toggleAuthMode() {
-    isLoginMode = !isLoginMode;
-    document.getElementById("authTitle").innerText = isLoginMode ? "Sign In" : "Create Account";
-    document.getElementById("authSubmitBtn").innerText = isLoginMode ? "Sign In" : "Register";
-    document.getElementById("authToggleText").innerText = isLoginMode ? "Don't have an account?" : "Already have an account?";
-    document.getElementById("authToggleBtn").innerText = isLoginMode ? "Register" : "Sign In";
-}
-
-async function handleAuth(event) {
-    event.preventDefault();
-    const email = document.getElementById("authEmail").value;
-    const password = document.getElementById("authPassword").value;
-
-    const endpoint = isLoginMode ? "/auth/login" : "/auth/register";
-
-    try {
-        let res;
-        if (isLoginMode) {
-            const formData = new URLSearchParams();
-            formData.append("username", email);
-            formData.append("password", password);
-
-            res = await fetch(`${API_URL}${endpoint}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: formData
-            });
-        } else {
-            res = await fetch(`${API_URL}${endpoint}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password })
-            });
-        }
-
-        const data = await res.json();
-
-        if (res.ok) {
-            if (isLoginMode) {
-                token = data.access_token;
-                localStorage.setItem("access_token", token);
-                localStorage.setItem("user_email", email);
-                showDashboard();
-            } else {
-                alert("Account created successfully! Please sign in.");
-                toggleAuthMode();
-            }
-        } else {
-            alert(data.detail || "Authentication failed.");
-        }
-    } catch (err) {
-        console.error("Auth error:", err);
-        alert("An error occurred. Please try again.");
-    }
-}
-
-function logout() {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user_email");
-    token = null;
-    showAuth();
-}
-
 function getAuthHeaders() {
+    const token = localStorage.getItem("token");
     return {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
     };
 }
 
-function showAuth() {
-    document.getElementById("authSection").classList.remove("hidden");
-    document.getElementById("dashboardSection").classList.add("hidden");
-    document.getElementById("userInfo").classList.add("hidden");
+// --- AUTHENTICATION ---
+
+async function handleLogin(event) {
+    event.preventDefault();
+    const emailInput = document.getElementById("loginEmail");
+    const passwordInput = document.getElementById("loginPassword");
+    if (!emailInput || !passwordInput) return;
+
+    const formData = new URLSearchParams();
+    formData.append("username", emailInput.value);
+    formData.append("password", passwordInput.value);
+
+    try {
+        const response = await fetch(`${API_URL}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: formData
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem("token", data.access_token);
+            showDashboard();
+        } else {
+            const err = await response.json();
+            alert(err.detail || "Login failed. Please check your credentials.");
+        }
+    } catch (error) {
+        console.error("Login error:", error);
+        alert("Connection error with the server.");
+    }
+}
+
+async function handleRegister(event) {
+    event.preventDefault();
+    const email = document.getElementById("registerEmail").value;
+    const password = document.getElementById("registerPassword").value;
+
+    try {
+        const response = await fetch(`${API_URL}/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
+
+        if (response.ok) {
+            alert("Registration successful! Please sign in.");
+            document.getElementById("registerForm").reset();
+        } else {
+            const err = await response.json();
+            alert(err.detail || "Registration failed.");
+        }
+    } catch (error) {
+        console.error("Register error:", error);
+        alert("Error during registration.");
+    }
+}
+
+function handleLogout() {
+    localStorage.removeItem("token");
+    showAuthScreen();
+}
+
+// --- UI VIEWS ---
+
+function showAuthScreen() {
+    const authContainer = document.getElementById("authContainer");
+    const dashboardContainer = document.getElementById("dashboardContainer");
+    const userInfo = document.getElementById("userInfo");
+
+    if (authContainer) authContainer.classList.remove("hidden");
+    if (dashboardContainer) dashboardContainer.classList.add("hidden");
+    if (userInfo) userInfo.classList.add("hidden");
 }
 
 function showDashboard() {
-    document.getElementById("authSection").classList.add("hidden");
-    document.getElementById("dashboardSection").classList.remove("hidden");
-    document.getElementById("userInfo").classList.remove("hidden");
-    document.getElementById("userEmail").innerText = localStorage.getItem("user_email") || "";
+    const authContainer = document.getElementById("authContainer");
+    const dashboardContainer = document.getElementById("dashboardContainer");
+    const userInfo = document.getElementById("userInfo");
 
-    setDefaultTxDate();
-    loadAnalytics();
+    if (authContainer) authContainer.classList.add("hidden");
+    if (dashboardContainer) dashboardContainer.classList.remove("hidden");
+    if (userInfo) userInfo.classList.remove("hidden");
+
     loadTransactions();
-}
-
-// --- DASHBOARD & ANALYTICS FUNCTIONS ---
-
-async function loadAnalytics() {
-    const startDate = document.getElementById("filterStartDate")?.value;
-    const endDate = document.getElementById("filterEndDate")?.value;
-
-    let queryParams = new URLSearchParams();
-    if (startDate) queryParams.append("start_date", startDate);
-    if (endDate) queryParams.append("end_date", endDate);
-
-    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
-
-    try {
-        // 1. Summary Analytics
-        const resSummary = await fetch(`${API_URL}/analytics/summary${queryString}`, { headers: getAuthHeaders() });
-        if (resSummary.ok) {
-            const data = await resSummary.json();
-            document.getElementById("totalIncome").innerText = `€${data.total_income.toFixed(2)}`;
-            document.getElementById("totalExpenses").innerText = `€${data.total_expenses.toFixed(2)}`;
-            document.getElementById("netBalance").innerText = `€${data.net_balance.toFixed(2)}`;
-        }
-
-        // 2. Category Analytics
-        const resCat = await fetch(`${API_URL}/analytics/by-category${queryString}`, { headers: getAuthHeaders() });
-        if (resCat.ok) {
-            const data = await resCat.json();
-            
-            let categoriesObj = {};
-
-            if (Array.isArray(data.expenses_by_category)) {
-                data.expenses_by_category.forEach(item => {
-                    categoriesObj[item.category] = item.total_amount;
-                });
-            } else if (typeof data.expenses_by_category === 'object' && data.expenses_by_category !== null) {
-                categoriesObj = data.expenses_by_category;
-            } else if (typeof data === 'object' && data !== null) {
-                categoriesObj = data.by_category || data;
-            }
-
-            renderCategoryBreakdown(categoriesObj);
-        }
-    } catch (err) {
-        console.error("Error loading analytics:", err);
-    }
-}
-
-function clearDateFilter() {
-    document.getElementById("filterStartDate").value = "";
-    document.getElementById("filterEndDate").value = "";
     loadAnalytics();
 }
 
-function renderCategoryBreakdown(categories) {
-    const list = document.getElementById("categoriesList");
-    list.innerHTML = "";
-
-    const labels = Object.keys(categories);
-    const values = Object.values(categories);
-
-    if (labels.length === 0 || values.reduce((a, b) => a + b, 0) === 0) {
-        list.innerHTML = `<li class="text-gray-500 text-sm italic py-2 text-center">No expenses found...</li>`;
-        return;
-    }
-
-    labels.forEach(cat => {
-        const val = Number(categories[cat]) || 0;
-        if (val > 0) {
-            list.innerHTML += `
-                <li class="flex justify-between items-center py-2 text-sm">
-                    <span class="font-medium text-gray-700">${cat}</span>
-                    <span class="font-bold text-red-600">€${val.toFixed(2)}</span>
-                </li>
-            `;
-        }
-    });
-}
-
-// --- TRANSACTIONS FUNCTIONS ---
+// --- TRANSACTIONS & DELETE & ANALYTICS ---
 
 async function loadTransactions() {
     try {
-        const res = await fetch(`${API_URL}/transactions/`, { headers: getAuthHeaders() });
-        if (res.ok) {
-            const transactions = await res.json();
-            const table = document.getElementById("transactionsTable");
-            table.innerHTML = "";
-
-            if (transactions.length === 0) {
-                table.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500 text-sm italic">No transactions found.</td></tr>`;
-                return;
-            }
-
-            transactions.forEach(tx => {
-                const isIncome = tx.type === "INCOME";
-                table.innerHTML += `
-                    <tr class="hover:bg-gray-50 transition border-b border-gray-100">
-                        <td class="p-3">
-                            <span class="px-2 py-1 text-xs font-semibold rounded-full ${isIncome ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-                                ${tx.type}
-                            </span>
-                        </td>
-                        <td class="p-3 font-medium text-gray-800">${tx.category}</td>
-                        <td class="p-3 text-sm text-gray-600">${tx.date || '-'}</td>
-                        <td class="p-3 font-bold ${isIncome ? 'text-green-600' : 'text-red-600'}">
-                            ${isIncome ? '+' : '-'}€${tx.amount.toFixed(2)}
-                        </td>
-                        <td class="p-3 text-right">
-                            <button onclick="deleteTransaction(${tx.id})" class="text-red-500 hover:text-red-700 font-medium text-sm transition hover:underline">
-                                Delete
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            });
+        const response = await fetch(`${API_URL}/transactions/`, {
+            headers: getAuthHeaders()
+        });
+        if (response.ok) {
+            const transactions = await response.json();
+            renderTransactionsList(transactions);
+            calculateTotals(transactions);
+        } else if (response.status === 401) {
+            handleLogout();
         }
-    } catch (err) {
-        console.error("Error loading transactions:", err);
+    } catch (error) {
+        console.error("Error loading transactions:", error);
     }
 }
 
-async function createTransaction(event) {
+async function handleAddTransaction(event) {
     event.preventDefault();
-    const amount = parseFloat(document.getElementById("txAmount").value);
-    const type = document.getElementById("txType").value;
-    const category = document.getElementById("txCategory").value;
-    const dateVal = document.getElementById("txDate").value;
-
-    const payload = { amount, type, category };
-    if (dateVal) payload.date = dateVal;
+    const type = document.getElementById("transType").value;
+    const category = document.getElementById("transCategory").value;
+    const amount = parseFloat(document.getElementById("transAmount").value);
 
     try {
-        const res = await fetch(`${API_URL}/transactions/`, {
+        const response = await fetch(`${API_URL}/transactions/`, {
             method: "POST",
             headers: getAuthHeaders(),
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ type, category, amount })
         });
 
-        if (res.ok) {
-            document.getElementById("txAmount").value = "";
-            document.getElementById("txCategory").value = "";
-            setDefaultTxDate();
-
-            await loadAnalytics();
-            await loadTransactions();
+        if (response.ok) {
+            document.getElementById("transactionForm").reset();
+            loadTransactions();
+            loadAnalytics();
         } else {
-            const err = await res.json();
-            alert(err.detail || "Failed to add transaction.");
+            alert("Failed to add transaction.");
         }
-    } catch (err) {
-        console.error("Error creating transaction:", err);
+    } catch (error) {
+        console.error("Error adding transaction:", error);
     }
 }
 
 async function deleteTransaction(id) {
-    if (!confirm("Are you sure you want to delete this transaction?")) {
-        return;
-    }
+    if (!confirm("Are you sure you want to delete this transaction?")) return;
 
     try {
-        const res = await fetch(`${API_URL}/transactions/${id}`, {
+        const response = await fetch(`${API_URL}/transactions/${id}`, {
             method: "DELETE",
             headers: getAuthHeaders()
         });
 
-        if (res.ok || res.status === 204) {
-            await loadAnalytics();
-            await loadTransactions();
+        if (response.ok) {
+            loadTransactions();
+            loadAnalytics();
         } else {
-            const err = await res.json();
-            alert(err.detail || "Failed to delete transaction.");
+            alert("Failed to delete transaction.");
         }
-    } catch (err) {
-        console.error("Error deleting transaction:", err);
-        alert("An error occurred while deleting the transaction.");
+    } catch (error) {
+        console.error("Error deleting transaction:", error);
+    }
+}
+
+async function loadAnalytics() {
+    try {
+        const response = await fetch(`${API_URL}/analytics/by-category`, {
+            headers: getAuthHeaders()
+        });
+        if (response.ok) {
+            const categories = await response.json();
+            renderCategoryBreakdown(categories);
+        } else {
+            console.error("Failed to load analytics");
+        }
+    } catch (error) {
+        console.error("Error loading analytics:", error);
+    }
+}
+
+function calculateTotals(transactions) {
+    let totalIncome = 0;
+    let totalExpenses = 0;
+
+    transactions.forEach(t => {
+        if (t.type.toUpperCase() === "INCOME") {
+            totalIncome += t.amount;
+        } else if (t.type.toUpperCase() === "EXPENSE") {
+            totalExpenses += t.amount;
+        }
+    });
+
+    const netBalance = totalIncome - totalExpenses;
+
+    document.getElementById("totalIncome").textContent = `€${totalIncome.toFixed(2)}`;
+    document.getElementById("totalExpenses").textContent = `€${totalExpenses.toFixed(2)}`;
+    
+    const netEl = document.getElementById("netBalance");
+    netEl.textContent = `€${netBalance.toFixed(2)}`;
+    netEl.className = `text-2xl font-bold mt-1 ${netBalance >= 0 ? 'text-indigo-600' : 'text-red-600'}`;
+}
+
+function renderTransactionsList(transactions) {
+    const listEl = document.getElementById("transactionsList");
+    if (!listEl) return;
+    listEl.innerHTML = "";
+    
+    if (!transactions || transactions.length === 0) {
+        listEl.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-500 italic">No transactions found.</td></tr>`;
+        return;
+    }
+
+    transactions.forEach(t => {
+        const row = document.createElement("tr");
+        row.className = "border-b hover:bg-gray-50";
+        
+        const typeColor = t.type.toUpperCase() === "INCOME" ? "text-green-600 font-semibold" : "text-red-600 font-semibold";
+        
+        row.innerHTML = `
+            <td class="p-3 ${typeColor}">${t.type}</td>
+            <td class="p-3 text-gray-800">${t.category}</td>
+            <td class="p-3 text-gray-700">€${t.amount.toFixed(2)}</td>
+            <td class="p-3 text-right">
+                <button onclick="deleteTransaction(${t.id})" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1 rounded text-xs font-semibold transition">Delete</button>
+            </td>
+        `;
+        listEl.appendChild(row);
+    });
+}
+
+function renderCategoryBreakdown(categories) {
+    const breakdownEl = document.getElementById("categoryBreakdown");
+    if (!breakdownEl) return;
+    breakdownEl.innerHTML = "";
+
+    if (!categories || Object.keys(categories).length === 0) {
+        breakdownEl.innerHTML = `<p class="text-gray-500 text-sm italic py-2 text-center">No analytics data available...</p>`;
+        return;
+    }
+
+    for (const [cat, amount] of Object.entries(categories)) {
+        const row = document.createElement("div");
+        row.className = "flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg";
+        row.innerHTML = `<span class="font-medium text-gray-700">${cat}</span> <span class="font-bold text-gray-900">€${amount.toFixed(2)}</span>`;
+        breakdownEl.appendChild(row);
     }
 }
